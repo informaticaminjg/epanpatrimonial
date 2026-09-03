@@ -1104,7 +1104,6 @@ window.EPAN = {
 };
 </script>
 
-<script src="<?= Yii::getAlias('@web') ?>/js/dist/paddleocr-loader.js"></script>
 <script src="<?= Yii::getAlias('@web') ?>/js/epan-scanner.js"></script>
 
 <script>
