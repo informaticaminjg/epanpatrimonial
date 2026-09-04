@@ -745,7 +745,7 @@ $this->registerMetaTag([
 
 <script>
 
-async function iniciarCamara() {
+/*async function iniciarCamara() {
 
     const video =
         document.getElementById('camera');
@@ -853,12 +853,12 @@ async function iniciarCamara() {
     }
 
 }
-
+*/
 
 /* =========================================================
    INICIO
    ========================================================= */
-
+/*
 document.addEventListener(
     'DOMContentLoaded',
     function () {
@@ -867,171 +867,13 @@ document.addEventListener(
 
     }
 );
-
+*/
 </script>
 
 <script>
 
 
 
-async function enviarImagenOCR(blob) {
-
-    const status = document.getElementById('ocr-status');
-    const panel = document.getElementById('result-panel');
-    const campo = document.getElementById('matriculaResult');
-
-    status.textContent = 'Analizando código...';
-
-    const formData = new FormData();
-
-    formData.append(
-        'imagen',
-        blob,
-        'matricula.jpg'
-    );
-
-    const url =
-        '<?= Url::to(["patrimonial/reconocer-matricula"]) ?>';
-
-    console.log('=================================');
-    console.log('OCR URL:', url);
-    console.log('Blob:', blob);
-    console.log('=================================');
-
-    try {
-
-        const respuesta = await fetch(
-            url,
-            {
-                method: 'POST',
-
-                headers: {
-                    'X-CSRF-Token':
-                        document.querySelector(
-                            'meta[name="csrf-token"]'
-                        ).getAttribute('content'),
-
-                    'X-Requested-With':
-                        'XMLHttpRequest'
-                },
-
-                body: formData
-            }
-        );
-
-        console.log('HTTP STATUS:', respuesta.status);
-        console.log('HTTP OK:', respuesta.ok);
-
-        const textoRespuesta =
-            await respuesta.text();
-
-        console.log(
-            'RESPUESTA DEL SERVIDOR:',
-            textoRespuesta
-        );
-
-        /*
-         * Intentamos convertir la respuesta
-         * a JSON
-         */
-
-        let data;
-
-        try {
-
-            data =
-                JSON.parse(textoRespuesta);
-
-        } catch (e) {
-
-            console.error(
-                'LA RESPUESTA NO ES JSON:',
-                textoRespuesta
-            );
-
-            status.textContent =
-                'El servidor devolvió un error';
-
-            alert(
-                'El servidor no devolvió JSON.\n\n' +
-                'HTTP: ' +
-                respuesta.status +
-                '\n\n' +
-                textoRespuesta.substring(0, 500)
-            );
-
-            return;
-        }
-
-
-        console.log(
-            'JSON OCR:',
-            data
-        );
-
-
-        if (!data.ok) {
-
-            status.textContent =
-                'Error OCR';
-
-            alert(
-                data.error ||
-                'Error desconocido'
-            );
-
-            return;
-        }
-
-
-        if (data.numero) {
-
-            campo.value =
-                data.numero;
-
-            panel.classList.remove(
-                'hidden'
-            );
-
-            status.textContent =
-                'Número detectado: ' +
-                data.numero;
-
-            console.log(
-                'NÚMERO:',
-                data.numero
-            );
-
-        } else {
-
-            status.textContent =
-                'No se encontró ningún número';
-            mostrarToast(
-                'Se procesó la imagen pero no encontró el número de matricula.\n\n' 
-                
-                //+'Texto detectado:\n' +
-                //(data.texto_ocr || '')
-            );            
-        }
-
-
-    } catch (error) {
-
-        console.error(
-            'ERROR FETCH:',
-            error
-        );
-
-        status.textContent =
-            'Error de comunicación';
-
-        alert(
-            'ERROR FETCH:\n\n' +
-            error.message
-        );
-    }
-
-}
 
 </script>
 
@@ -1104,77 +946,8 @@ window.EPAN = {
 };
 </script>
 
-<script src="<?= Yii::getAlias('@web') ?>/js/dist/paddleocr-loader.js"></script>
 <script src="<?= Yii::getAlias('@web') ?>/js/epan-scanner.js"></script>
 
 <script>
-
-document.addEventListener('DOMContentLoaded', function () {
-
-    const captureBtn =
-        document.getElementById('captureBtn');
-
-    const video =
-        document.getElementById('camera');
-
-    captureBtn.addEventListener('click', function () {
-
-        if (!video.videoWidth || !video.videoHeight) {
-
-            alert(
-                'La cámara todavía no está lista.'
-            );
-
-            return;
-        }
-
-        const canvas =
-            document.createElement('canvas');
-
-        /*
-         * Usamos la resolución real de la cámara
-         */
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-
-        const ctx =
-            canvas.getContext('2d');
-
-        ctx.drawImage(
-            video,
-            0,
-            0,
-            canvas.width,
-            canvas.height
-        );
-
-        /*
-         * Convertir imagen a JPEG
-         */
-        canvas.toBlob(
-            function (blob) {
-
-                if (!blob) {
-
-                    alert(
-                        'No se pudo capturar la imagen.'
-                    );
-
-                    return;
-                }
-
-                /*
-                 * Mandar a OCR.space
-                 */
-                enviarImagenOCR(blob);
-
-            },
-            'image/jpeg',
-            0.95
-        );
-
-    });
-
-});
 
 </script>
