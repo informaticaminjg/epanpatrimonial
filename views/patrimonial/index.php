@@ -66,7 +66,20 @@ function iconFor($bien) {
 
         <i class="fa-solid fa-chevron-right arrow"></i>
     </a>
+    <a class="scan-card" href="<?= Url::to(['site/estadisticas']) ?>">
 
+        <div class="scan-icon purple">
+            <i class="fa-solid fa-chart-line"></i>
+        </div>
+
+        <div class="scan-text">
+            <strong>Estadísticas Patrimoniales</strong>
+            <span>Consultar indicadores, gráficos y movimientos del patrimonio</span>
+        </div>
+
+        <i class="fa-solid fa-chevron-right arrow"></i>
+
+    </a>
     <a class="scan-card" href="<?= Url::to(['patrimonial/registro-por-persona']) ?>">
         <div class="scan-icon purple">
             <i class="fa-solid fa-id-card"></i>
