@@ -452,37 +452,7 @@ $this->registerJsFile(
     <!-- =====================================================
          HEADER
          ====================================================== -->
-
-    <div class="stats-header">
-
-        <div class="stats-header-top">
-
-            <div class="brand">
-
-                <div class="brand-icon">
-                    <i class="bi bi-bank"></i>
-                </div>
-
-                <div>
-                    <div class="brand-title">
-                        Patrimoniales
-                    </div>
-
-                    <div class="brand-subtitle">
-                        Sistema de Gestión de Bienes
-                    </div>
-                </div>
-
-            </div>
-
-            <button class="menu-btn">
-                <i class="bi bi-list"></i>
-            </button>
-
-        </div>
-
-    </div>
-
+    
 
     <!-- =====================================================
          TITULO
