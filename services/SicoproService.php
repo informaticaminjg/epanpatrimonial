@@ -82,9 +82,10 @@ class SicoproService
         // -----------------------------------------
         // BÚSQUEDA REAL LOCAL
         // -----------------------------------------
-        return Bien::find()
+       /* return Bien::find()
             ->where(['matricula' => $matricula])
-            ->one();
+            ->one();*/
+        return null;    
     }
 
 
