@@ -51,7 +51,7 @@ function iconFor($bien) {
             <strong>Escanear Código de Barras</strong>
             <span>Lee el código para obtener el número de serie</span> 
         </div>
-        
+        <i class="fa-solid fa-chevron-right arrow"></i>
     </a>
   
    <a class="scan-card" href="<?= Url::to(['relevamientopat/create']) ?>">
