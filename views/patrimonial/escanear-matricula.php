@@ -940,9 +940,19 @@ function mostrarToast(mensaje) {
 </script>
 <script>
 window.EPAN = {
-    buscarUrl: <?= json_encode(Url::to(['patrimonial/buscar'])) ?>,
+    buscarUrl: <?= json_encode(
+        Url::to(['patrimonial/buscar'])
+    ) ?>,
+
+    ocrUrl: <?= json_encode(
+        Url::to(['patrimonial/reconocer-matricula'])
+    ) ?>,
+
     tipo: 'matricula',
-    csrfToken: <?= json_encode(Yii::$app->request->getCsrfToken()) ?>
+
+    csrfToken: <?= json_encode(
+        Yii::$app->request->getCsrfToken()
+    ) ?>
 };
 </script>
 

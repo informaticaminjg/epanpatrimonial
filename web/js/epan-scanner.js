@@ -1,15 +1,31 @@
+
 (function () {
 
     'use strict';
 
     // =========================================================
     // EPAN SCANNER
-    // OCR PATRIMONIAL CON PADDLEOCR
+    // OCR PATRIMONIAL MEDIANTE SERVIDOR
+    //
     // Ejemplo:
     // 724-191973
+    //
+    // IMPORTANTE:
+    // El OCR ya NO se ejecuta en el navegador.
+    //
+    // La fotografía se envía al servidor mediante:
+    //
+    // EPAN.ocrUrl
+    //
     // =========================================================
 
-    const video = document.getElementById('camera');
+
+    // =========================================================
+    // ELEMENTOS HTML
+    // =========================================================
+
+    const video =
+        document.getElementById('camera');
 
     const captureBtn =
         document.getElementById('captureBtn');
@@ -20,14 +36,9 @@
     const buscarBtn =
         document.getElementById('buscarBtn') ||
         document.getElementById('buscarBarcodeBtn');
-    /*
-    const resultPanel = document.getElementById('result-panel');
-    const resultInput = document.getElementById('matriculaResult');
-    const status = document.getElementById('ocr-status');
-    */
 
     const resultPanel =
-    document.getElementById('result-panel');
+        document.getElementById('result-panel');
 
     const resultInput =
         document.getElementById('matriculaResult') ||
@@ -38,11 +49,19 @@
         document.getElementById('barcode-status');
 
 
+    // =========================================================
+    // VARIABLES
+    // =========================================================
+
     let stream = null;
 
-    let paddleOCR = null;
-    let paddleInicializado = false;
-    let inicializandoOCR = false;
+    let barcodeDetector = null;
+    let barcodeScanning = false;
+    let barcodeFrame = null;
+    let barcodeDetectando = false;
+
+    let procesandoOCR = false;
+
 
     // =========================================================
     // CONFIGURACIÓN
@@ -50,32 +69,16 @@
 
     const CONFIG = {
 
-        // Ampliación de la fotografía.
+        // Ampliación del recorte.
         scale: 4,
 
-        // No exigimos cantidad de dígitos.
+        // Mínimo de dígitos para considerar
+        // que puede existir un número patrimonial.
         minDigits: 3,
 
-        // Formato patrimonial.
-        // Ejemplo:
-        //
-        // 724191973
-        //
-        // se convierte en:
-        //
-        // 724-191973
-        //
-        // PERO solamente si PaddleOCR entrega una cadena
-        // suficientemente clara.
-        separator: '-',
+        // Separador patrimonial.
+        separator: '-'
 
-        // Umbral de confianza.
-        confidence: 0.25,
-
-        // PaddleOCR.
-        lang: 'en',
-
-        ocrVersion: 'PP-OCRv5'
     };
 
 
@@ -92,10 +95,27 @@
     }
 
 
+    function mostrarMensaje(mensaje) {
+
+        if (typeof mostrarToast === 'function') {
+
+            mostrarToast(mensaje);
+
+        } else {
+
+            alert(mensaje);
+
+        }
+
+    }
+
+
     function sleep(ms) {
 
         return new Promise(function (resolve) {
+
             setTimeout(resolve, ms);
+
         });
 
     }
@@ -108,17 +128,21 @@
     async function iniciarCamara() {
 
         if (!video) {
+
             console.error(
                 'No existe #camera'
             );
+
             return;
         }
+
 
         try {
 
             setStatus(
                 'Solicitando acceso a la cámara...'
             );
+
 
             if (
                 !navigator.mediaDevices ||
@@ -130,6 +154,7 @@
                 );
 
             }
+
 
             stream =
                 await navigator.mediaDevices.getUserMedia({
@@ -157,7 +182,9 @@
                 });
 
 
-            video.srcObject = stream;
+            video.srcObject =
+                stream;
+
 
             await video.play();
 
@@ -182,7 +209,10 @@
             );
 
 
-            if (EPAN && EPAN.tipo === 'barcode') {
+            if (
+                window.EPAN &&
+                EPAN.tipo === 'barcode'
+            ) {
 
                 setStatus(
                     'Apuntá al código de barras'
@@ -191,7 +221,7 @@
             } else {
 
                 setStatus(
-                    'Apuntá al número de matricula'
+                    'Apuntá al número de matrícula'
                 );
 
             }
@@ -204,6 +234,7 @@
                 error
             );
 
+
             setStatus(
                 'Error de cámara: ' +
                 error.message
@@ -214,437 +245,311 @@
     }
 
 
+    // =========================================================
+    // LECTOR DE CÓDIGO DE BARRAS
+    // =========================================================
 
-
-
-
-
-// =========================================================
-// LECTOR DE CÓDIGO DE BARRAS
-// =========================================================
-
-let barcodeDetector = null;
-let barcodeScanning = false;
-let barcodeFrame = null;
-let barcodeDetectando = false;
-
-
-// =========================================================
-// INICIAR LECTOR DE CÓDIGO DE BARRAS
-// =========================================================
-
-async function iniciarLectorBarcode() {
-
-    console.log(
-        '======================================'
-    );
-
-    console.log(
-        'INICIANDO LECTOR DE CÓDIGO DE BARRAS'
-    );
-
-    console.log(
-        '======================================'
-    );
-
-
-    // -----------------------------------------------------
-    // Comprobar BarcodeDetector
-    // -----------------------------------------------------
-
-    if (!('BarcodeDetector' in window)) {
+    async function iniciarLectorBarcode() {
 
         console.log(
-            'BarcodeDetector no disponible. Se utiliza el lector alternativo.'
+            '======================================'
         );
-
-    }
-
-    try {
-
-        const formatos =
-            await BarcodeDetector.getSupportedFormats();
-
 
         console.log(
-            'FORMATOS SOPORTADOS:',
-            formatos
+            'INICIANDO LECTOR DE CÓDIGO DE BARRAS'
         );
-
-
-        // -------------------------------------------------
-        // Formatos que nos interesan
-        // -------------------------------------------------
-
-        const formatosPermitidos = [
-            'ean_13',
-            'ean_8',
-            'upc_a',
-            'upc_e',
-            'code_128',
-            'code_39',
-            'code_93',
-            'codabar',
-            'itf'
-        ];
-
-
-        const formatosDisponibles =
-            formatosPermitidos.filter(
-                function (formato) {
-
-                    return formatos.includes(
-                        formato
-                    );
-
-                }
-            );
-
 
         console.log(
-            'FORMATOS UTILIZADOS:',
-            formatosDisponibles
+            '======================================'
         );
 
 
-        if (!formatosDisponibles.length) {
-
-            throw new Error(
-                'El navegador no tiene un formato de código compatible.'
-            );
-
-        }
-
-
-        barcodeDetector =
-            new BarcodeDetector({
-
-                formats:
-                    formatosDisponibles
-
-            });
-
-
-        barcodeScanning = true;
-
-
-        setStatus(
-            'Apuntá al código de barras'
-        );
-
-
-        // -------------------------------------------------
-        // Comenzar análisis
-        // -------------------------------------------------
-
-        escanearBarcode();
-
-
-    } catch (error) {
-
-        console.error(
-            'ERROR INICIANDO LECTOR:',
-            error
-        );
-
-        setStatus(
-            'No se pudo iniciar el lector de códigos.'
-        );
-
-    }
-
-}
-
-
-// =========================================================
-// ANALIZAR CÁMARA
-// =========================================================
-
-async function escanearBarcode() {
-
-    if (!barcodeScanning) {
-        return;
-    }
-
-
-    if (
-        !barcodeDetector ||
-        !video ||
-        !video.videoWidth
-    ) {
-
-        barcodeFrame =
-            requestAnimationFrame(
-                escanearBarcode
-            );
-
-        return;
-
-    }
-
-
-    // -----------------------------------------------------
-    // Evitar dos detecciones simultáneas
-    // -----------------------------------------------------
-
-    if (barcodeDetectando) {
-
-        barcodeFrame =
-            requestAnimationFrame(
-                escanearBarcode
-            );
-
-        return;
-
-    }
-
-
-    barcodeDetectando = true;
-
-
-    try {
-
-        const resultados =
-            await barcodeDetector.detect(
-                video
-            );
-
+        // -----------------------------------------------------
+        // Verificar disponibilidad
+        // -----------------------------------------------------
 
         if (
-            resultados &&
-            resultados.length > 0
+            !('BarcodeDetector' in window)
         ) {
 
-            const resultado =
-                resultados[0];
-
-
-            const codigo =
-                resultado.rawValue;
-
-
-            console.log(
-                '======================================'
+            console.warn(
+                'BarcodeDetector no está disponible en este navegador.'
             );
-
-            console.log(
-                'CÓDIGO DE BARRAS DETECTADO:',
-                codigo
-            );
-
-            console.log(
-                'FORMATO:',
-                resultado.format
-            );
-
-            console.log(
-                '======================================'
-            );
-
-
-            if (!codigo) {
-
-                barcodeDetectando = false;
-
-                barcodeFrame =
-                    requestAnimationFrame(
-                        escanearBarcode
-                    );
-
-                return;
-
-            }
-
-
-            // -------------------------------------------------
-            // Detener el escaneo
-            // -------------------------------------------------
-
-            barcodeScanning = false;
-
-
-            if (barcodeFrame) {
-
-                cancelAnimationFrame(
-                    barcodeFrame
-                );
-
-                barcodeFrame = null;
-
-            }
-
-
-            // -------------------------------------------------
-            // Mostrar código
-            // -------------------------------------------------
-
-            if (resultInput) {
-
-                resultInput.value =
-                    codigo;
-
-            }
-
 
             setStatus(
-                'Código detectado: ' + codigo
+                'El navegador no dispone de lector de códigos de barras.'
             );
-
-
-            // -------------------------------------------------
-            // Buscar automáticamente en SICOPRO
-            // -------------------------------------------------
-
-            await buscar(codigo);
-
 
             return;
 
         }
 
 
-    } catch (error) {
-
-        console.error(
-            'ERROR LEYENDO CÓDIGO:',
-            error
-        );
-
-    } finally {
-
-        barcodeDetectando = false;
-
-    }
-
-
-    if (barcodeScanning) {
-
-        barcodeFrame =
-            requestAnimationFrame(
-                escanearBarcode
-            );
-
-    }
-
-}
-
-
-
-
-
-    // =========================================================
-    // CARGAR PADDLEOCR
-    // =========================================================
-    //
-    // El paquete npm debe estar disponible mediante el bundle
-    // generado por tu aplicación.
-    //
-    // window.PaddleOCR deberá existir.
-    //
-    // =========================================================
-
-    async function inicializarPaddleOCR() {
-
-        if (paddleInicializado) {
-            return paddleOCR;
-        }
-
-        if (inicializandoOCR) {
-
-            while (inicializandoOCR) {
-                await sleep(100);
-            }
-
-            return paddleOCR;
-        }
-
-
-        inicializandoOCR = true;
-
-
         try {
 
-            setStatus(
-                'Inicializando OCR...'
+            const formatos =
+                await BarcodeDetector.getSupportedFormats();
+
+
+            console.log(
+                'FORMATOS SOPORTADOS:',
+                formatos
+            );
+
+
+            // -------------------------------------------------
+            // Formatos permitidos
+            // -------------------------------------------------
+
+            const formatosPermitidos = [
+
+                'ean_13',
+                'ean_8',
+                'upc_a',
+                'upc_e',
+                'code_128',
+                'code_39',
+                'code_93',
+                'codabar',
+                'itf'
+
+            ];
+
+
+            const formatosDisponibles =
+                formatosPermitidos.filter(
+                    function (formato) {
+
+                        return formatos.includes(
+                            formato
+                        );
+
+                    }
+                );
+
+
+            console.log(
+                'FORMATOS UTILIZADOS:',
+                formatosDisponibles
             );
 
 
             if (
-                typeof window.PaddleOCR === 'undefined'
+                !formatosDisponibles.length
             ) {
 
                 throw new Error(
-                    'PaddleOCR no está cargado.'
+                    'El navegador no tiene un formato de código compatible.'
                 );
 
             }
 
 
-            console.log(
-                '======================================'
-            );
+            barcodeDetector =
+                new BarcodeDetector({
 
-            console.log(
-                'INICIALIZANDO PADDLEOCR'
-            );
-
-            console.log(
-                'Versión:',
-                CONFIG.ocrVersion
-            );
-
-            console.log(
-                '======================================'
-            );
-
-
-            paddleOCR =
-                await window.PaddleOCR.create({
-
-                    lang: CONFIG.lang,
-
-                    ocrVersion:
-                        CONFIG.ocrVersion,
-
-                    ortOptions: {
-
-                        backend: 'wasm',
-
-                        numThreads: 2,
-
-                        simd: true
-
-                    }
+                    formats:
+                        formatosDisponibles
 
                 });
 
 
-            paddleInicializado = true;
+            barcodeScanning =
+                true;
 
 
-            console.log(
-                'PADDLEOCR LISTO'
+            setStatus(
+                'Apuntá al código de barras'
             );
 
 
-            return paddleOCR;
+            escanearBarcode();
 
 
         } catch (error) {
 
             console.error(
-                'ERROR INICIALIZANDO PADDLEOCR:',
+                'ERROR INICIANDO LECTOR:',
                 error
             );
 
-            paddleOCR = null;
 
-            throw error;
+            setStatus(
+                'No se pudo iniciar el lector de códigos.'
+            );
 
+        }
+
+    }
+
+
+    // =========================================================
+    // ESCANEAR CÓDIGO DE BARRAS
+    // =========================================================
+
+    async function escanearBarcode() {
+
+        if (!barcodeScanning) {
+            return;
+        }
+
+
+        if (
+            !barcodeDetector ||
+            !video ||
+            !video.videoWidth
+        ) {
+
+            barcodeFrame =
+                requestAnimationFrame(
+                    escanearBarcode
+                );
+
+            return;
+
+        }
+
+
+        // -----------------------------------------------------
+        // Evitar detecciones simultáneas
+        // -----------------------------------------------------
+
+        if (barcodeDetectando) {
+
+            barcodeFrame =
+                requestAnimationFrame(
+                    escanearBarcode
+                );
+
+            return;
+
+        }
+
+
+        barcodeDetectando =
+            true;
+
+
+        try {
+
+            const resultados =
+                await barcodeDetector.detect(
+                    video
+                );
+
+
+            if (
+                resultados &&
+                resultados.length > 0
+            ) {
+
+                const resultado =
+                    resultados[0];
+
+
+                const codigo =
+                    resultado.rawValue;
+
+
+                console.log(
+                    '======================================'
+                );
+
+                console.log(
+                    'CÓDIGO DE BARRAS DETECTADO:',
+                    codigo
+                );
+
+                console.log(
+                    'FORMATO:',
+                    resultado.format
+                );
+
+                console.log(
+                    '======================================'
+                );
+
+
+                if (!codigo) {
+
+                    return;
+
+                }
+
+
+                // -------------------------------------------------
+                // Detener escaneo
+                // -------------------------------------------------
+
+                barcodeScanning =
+                    false;
+
+
+                if (barcodeFrame) {
+
+                    cancelAnimationFrame(
+                        barcodeFrame
+                    );
+
+                    barcodeFrame =
+                        null;
+
+                }
+
+
+                // -------------------------------------------------
+                // Mostrar código
+                // -------------------------------------------------
+
+                if (resultInput) {
+
+                    resultInput.value =
+                        codigo;
+
+                }
+
+
+                setStatus(
+                    'Código detectado: ' +
+                    codigo
+                );
+
+
+                // -------------------------------------------------
+                // Buscar automáticamente
+                // -------------------------------------------------
+
+                await buscar(
+                    codigo
+                );
+
+
+                return;
+
+            }
+
+
+        } catch (error) {
+
+            console.error(
+                'ERROR LEYENDO CÓDIGO:',
+                error
+            );
 
         } finally {
 
-            inicializandoOCR = false;
+            barcodeDetectando =
+                false;
+
+        }
+
+
+        if (barcodeScanning) {
+
+            barcodeFrame =
+                requestAnimationFrame(
+                    escanearBarcode
+                );
 
         }
 
@@ -672,6 +577,15 @@ async function escanearBarcode() {
         }
 
 
+        if (!video) {
+
+            throw new Error(
+                'No existe el elemento de video.'
+            );
+
+        }
+
+
         const videoRect =
             video.getBoundingClientRect();
 
@@ -683,6 +597,7 @@ async function escanearBarcode() {
         console.log(
             '======================================'
         );
+
 
         console.log(
             'VIDEO EN PANTALLA:',
@@ -712,20 +627,28 @@ async function escanearBarcode() {
         );
 
 
-        // Coordenadas relativas al video.
+        // -----------------------------------------------------
+        // Coordenadas relativas al video
+        // -----------------------------------------------------
+
         const relativeX =
             frameRect.left -
             videoRect.left;
+
 
         const relativeY =
             frameRect.top -
             videoRect.top;
 
 
-        // Escala entre video real y video mostrado.
+        // -----------------------------------------------------
+        // Escala video real / video mostrado
+        // -----------------------------------------------------
+
         const scaleX =
             video.videoWidth /
             videoRect.width;
+
 
         const scaleY =
             video.videoHeight /
@@ -736,22 +659,25 @@ async function escanearBarcode() {
             relativeX *
             scaleX;
 
+
         let y =
             relativeY *
             scaleY;
 
+
         let width =
             frameRect.width *
             scaleX;
+
 
         let height =
             frameRect.height *
             scaleY;
 
 
-        // =====================================================
-        // LIMITAR A LOS BORDES DEL VIDEO
-        // =====================================================
+        // -----------------------------------------------------
+        // Limitar a los bordes
+        // -----------------------------------------------------
 
         x =
             Math.max(
@@ -761,6 +687,7 @@ async function escanearBarcode() {
                     video.videoWidth
                 )
             );
+
 
         y =
             Math.max(
@@ -787,14 +714,12 @@ async function escanearBarcode() {
 
 
         console.log(
-            'RECORTE REAL EN VIDEO:',
+            'RECORTE REAL:',
             {
-
                 x,
                 y,
                 width,
                 height
-
             }
         );
 
@@ -806,11 +731,17 @@ async function escanearBarcode() {
 
         return {
 
-            x: Math.round(x),
-            y: Math.round(y),
+            x:
+                Math.round(x),
 
-            width: Math.round(width),
-            height: Math.round(height)
+            y:
+                Math.round(y),
+
+            width:
+                Math.round(width),
+
+            height:
+                Math.round(height)
 
         };
 
@@ -852,7 +783,9 @@ async function escanearBarcode() {
             );
 
 
-        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingEnabled =
+            true;
+
 
         ctx.imageSmoothingQuality =
             'high';
@@ -864,6 +797,7 @@ async function escanearBarcode() {
 
             crop.x,
             crop.y,
+
             crop.width,
             crop.height,
 
@@ -898,7 +832,7 @@ async function escanearBarcode() {
 
 
     // =========================================================
-    // CREAR VERSIÓN NORMAL
+    // CREAR VERSION NORMAL
     // =========================================================
 
     function crearVersionNormal(source) {
@@ -908,8 +842,10 @@ async function escanearBarcode() {
                 'canvas'
             );
 
+
         canvas.width =
             source.width;
+
 
         canvas.height =
             source.height;
@@ -979,8 +915,10 @@ async function escanearBarcode() {
             const r =
                 data[i];
 
+
             const g =
                 data[i + 1];
+
 
             const b =
                 data[i + 2];
@@ -997,8 +935,10 @@ async function escanearBarcode() {
             data[i] =
                 gray;
 
+
             data[i + 1] =
                 gray;
+
 
             data[i + 2] =
                 gray;
@@ -1084,8 +1024,10 @@ async function escanearBarcode() {
             data[i] =
                 value;
 
+
             data[i + 1] =
                 value;
+
 
             data[i + 2] =
                 value;
@@ -1158,8 +1100,10 @@ async function escanearBarcode() {
             data[i] =
                 result;
 
+
             data[i + 1] =
                 result;
+
 
             data[i + 2] =
                 result;
@@ -1180,79 +1124,76 @@ async function escanearBarcode() {
 
 
     // =========================================================
-    // EXTRAER RESULTADO DE PADDLE
+    // CANVAS -> BLOB
     // =========================================================
 
-    function extraerTexto(resultado) {
+    function canvasToBlob(canvas) {
 
-        if (!resultado) {
-            return '';
-        }
+        return new Promise(
+            function (resolve, reject) {
 
+                canvas.toBlob(
 
-        let textos = [];
+                    function (blob) {
 
+                        if (!blob) {
 
-        if (
-            Array.isArray(
-                resultado.items
-            )
-        ) {
+                            reject(
+                                new Error(
+                                    'No se pudo convertir la imagen.'
+                                )
+                            );
 
-            resultado.items.forEach(
-                function (item) {
+                            return;
 
-                    if (
-                        item &&
-                        typeof item.text === 'string'
-                    ) {
-
-                        textos.push(
-                            item.text
-                        );
-
-                    }
-
-                }
-            );
-
-        }
+                        }
 
 
-        return textos.join(' ');
+                        resolve(blob);
+
+                    },
+
+                    'image/jpeg',
+
+                    0.92
+
+                );
+
+            }
+        );
 
     }
 
 
     // =========================================================
-    // LIMPIAR TEXTO
+    // NORMALIZAR NÚMERO PATRIMONIAL
     // =========================================================
 
-    function limpiarTextoPatrimonial(texto) {
+    function normalizarNumeroPatrimonial(texto) {
 
         if (!texto) {
             return '';
         }
 
 
-        texto =
+        let limpio =
             texto
                 .toUpperCase()
                 .trim();
 
 
         console.log(
-            'TEXTO PADDLE ORIGINAL:',
-            texto
+            'TEXTO RECIBIDO:',
+            limpio
         );
 
 
-        // =====================================================
-        // CORRECCIONES OCR
-        // =====================================================
+        // -----------------------------------------------------
+        // Correcciones típicas de OCR
+        // -----------------------------------------------------
 
-        texto =
-            texto
+        limpio =
+            limpio
 
                 .replace(
                     /O/g,
@@ -1290,95 +1231,105 @@ async function escanearBarcode() {
                 );
 
 
-        // =====================================================
-        // DEJAR SOLO NÚMEROS Y -
-        // =====================================================
+        // -----------------------------------------------------
+        // Buscar formato:
+        //
+        // 724-191973
+        // 724 191973
+        // 724/191973
+        // -----------------------------------------------------
 
-        texto =
-            texto.replace(
-                /[^0-9-]/g,
-                ''
+        let encontrado =
+            limpio.match(
+                /\b(\d{2,5})\s*[-./]\s*(\d{4,10})\b/
             );
 
 
-        // =====================================================
-        // LIMPIAR GUIONES
-        // =====================================================
+        if (encontrado) {
 
-        texto =
-            texto.replace(
-                /-+/g,
-                '-'
+            return (
+                encontrado[1] +
+                CONFIG.separator +
+                encontrado[2]
             );
 
-
-        texto =
-            texto.replace(
-                /^-+/,
-                ''
-            );
-
-
-        texto =
-            texto.replace(
-                /-+$/,
-                ''
-            );
-
-
-        return texto;
-
-    }
-
-
-    // =========================================================
-    // OBTENER NÚMERO PATRIMONIAL
-    // =========================================================
-
-    function obtenerNumeroPatrimonial(texto) {
-
-        let limpio =
-            limpiarTextoPatrimonial(
-                texto
-            );
-
-
-        if (!limpio) {
-            return '';
         }
 
 
-        // =====================================================
-        // SI YA VIENE CON GUION
-        // =====================================================
+        // -----------------------------------------------------
+        // Buscar dos grupos separados por espacios
+        // -----------------------------------------------------
+
+        encontrado =
+            limpio.match(
+                /\b(\d{2,5})\s+(\d{4,10})\b/
+            );
+
+
+        if (encontrado) {
+
+            return (
+                encontrado[1] +
+                CONFIG.separator +
+                encontrado[2]
+            );
+
+        }
+
+
+        // -----------------------------------------------------
+        // Buscar número continuo
+        //
+        // Ejemplo:
+        //
+        // 724191973
+        // -----------------------------------------------------
+
+        const numeros =
+            limpio.match(
+                /\b\d{7,15}\b/g
+            );
+
 
         if (
-            limpio.indexOf('-') !== -1
+            numeros &&
+            numeros.length
         ) {
 
-            const partes =
-                limpio.split('-');
-
-
-            const numeros =
-                partes.filter(
-                    function (p) {
+            const numero =
+                numeros.sort(
+                    function (a, b) {
 
                         return (
-                            p &&
-                            /^\d+$/.test(p)
+                            b.length -
+                            a.length
                         );
 
                     }
-                );
+                )[0];
 
 
-            if (numeros.length >= 2) {
+            if (
+                numero.length >= 7
+            ) {
+
+                const primerBloque =
+                    numero.substring(
+                        0,
+                        3
+                    );
+
+
+                const segundoBloque =
+                    numero.substring(
+                        3
+                    );
+
 
                 return (
-                    numeros[0] +
-                    '-' +
-                    numeros.slice(1).join('')
+                    primerBloque +
+                    CONFIG.separator +
+                    segundoBloque
                 );
 
             }
@@ -1386,9 +1337,10 @@ async function escanearBarcode() {
         }
 
 
-        // =====================================================
-        // SIN GUION
-        // =====================================================
+        // -----------------------------------------------------
+        // Último intento:
+        // eliminar todo excepto números
+        // -----------------------------------------------------
 
         const soloNumeros =
             limpio.replace(
@@ -1407,38 +1359,23 @@ async function escanearBarcode() {
         }
 
 
-        // =====================================================
-        // FORMATO PATRIMONIAL
-        //
-        // Ejemplo:
-        //
-        // 724191973
-        //
-        // 724-191973
-        //
-        // =====================================================
-
         if (
             soloNumeros.length >= 7
         ) {
 
-            const primerBloque =
+            return (
+
                 soloNumeros.substring(
                     0,
                     3
-                );
+                ) +
 
+                CONFIG.separator +
 
-            const segundoBloque =
                 soloNumeros.substring(
                     3
-                );
+                )
 
-
-            return (
-                primerBloque +
-                '-' +
-                segundoBloque
             );
 
         }
@@ -1450,107 +1387,414 @@ async function escanearBarcode() {
 
 
     // =========================================================
-    // EJECUTAR PADDLE OCR
+    // OBTENER URL OCR
     // =========================================================
 
-    async function ejecutarPaddleOCR(
-        canvas,
-        numeroVersion
-    ) {
+    function obtenerOCRUrl() {
 
-        const ocr =
-            await inicializarPaddleOCR();
+        if (
+            !window.EPAN ||
+            !EPAN.ocrUrl
+        ) {
+
+            console.error(
+                'EPAN.ocrUrl no está definido.'
+            );
+
+
+            return null;
+
+        }
+
+
+        return EPAN.ocrUrl;
+
+    }
+
+
+    // =========================================================
+    // ENVIAR IMAGEN AL SERVIDOR
+    // =========================================================
+
+    async function enviarImagenOCR(blob) {
+
+        const url =
+            obtenerOCRUrl();
+
+
+        if (!url) {
+
+            throw new Error(
+                'No se configuró la URL del OCR.'
+            );
+
+        }
+
+
+        if (!blob) {
+
+            throw new Error(
+                'No se recibió ninguna imagen.'
+            );
+
+        }
 
 
         console.log(
-            '--------------------------------------'
+            '======================================'
         );
 
-        console.log(
-            'PADDLE OCR VERSIÓN',
-            numeroVersion
-        );
 
         console.log(
-            'IMAGEN:',
-            canvas.width,
-            'x',
-            canvas.height
+            'ENVIANDO IMAGEN AL OCR DEL SERVIDOR'
+        );
+
+
+        console.log(
+            'OCR URL:',
+            url
+        );
+
+
+        console.log(
+            'BLOB:',
+            blob.type,
+            blob.size
+        );
+
+
+        console.log(
+            '======================================'
         );
 
 
         setStatus(
-            'Analizando imagen...'
+            'Analizando fotografía...'
         );
 
 
-        const resultados =
-            await ocr.predict(
+        const formData =
+            new FormData();
 
-                canvas,
 
-                {
+        formData.append(
+            'imagen',
+            blob,
+            'matricula.jpg'
+        );
 
-                    textDetLimitSideLen:
-                        1536,
 
-                    textDetThresh:
-                        0.20,
+        // -----------------------------------------------------
+        // CSRF
+        // -----------------------------------------------------
 
-                    textDetBoxThresh:
-                        0.20,
+        const csrfToken =
+            window.EPAN
+                ? EPAN.csrfToken
+                : null;
 
-                    textRecScoreThresh:
-                        0.20
+
+        const headers = {
+
+            'X-Requested-With':
+                'XMLHttpRequest'
+
+        };
+
+
+        if (csrfToken) {
+
+            headers[
+                'X-CSRF-Token'
+            ] =
+                csrfToken;
+
+        }
+
+
+        try {
+
+            const respuesta =
+                await fetch(
+
+                    url,
+
+                    {
+
+                        method:
+                            'POST',
+
+                        credentials:
+                            'same-origin',
+
+                        headers:
+                            headers,
+
+                        body:
+                            formData
+
+                    }
+
+                );
+
+
+            console.log(
+                'HTTP STATUS:',
+                respuesta.status
+            );
+
+
+            console.log(
+                'HTTP OK:',
+                respuesta.ok
+            );
+
+
+            const textoRespuesta =
+                await respuesta.text();
+
+
+            console.log(
+                'RESPUESTA OCR SERVIDOR:',
+                textoRespuesta
+            );
+
+
+            if (!respuesta.ok) {
+
+                throw new Error(
+                    'HTTP ' +
+                    respuesta.status +
+                    ': ' +
+                    textoRespuesta
+                );
+
+            }
+
+
+            let data;
+
+
+            try {
+
+                data =
+                    JSON.parse(
+                        textoRespuesta
+                    );
+
+            } catch (errorJSON) {
+
+                console.error(
+                    'RESPUESTA OCR NO ES JSON:',
+                    textoRespuesta
+                );
+
+
+                throw new Error(
+                    'El servidor no devolvió JSON válido.'
+                );
+
+            }
+
+
+            console.log(
+                'JSON OCR:',
+                data
+            );
+
+
+            if (!data.ok) {
+
+                const mensaje =
+                    data.error ||
+                    data.mensaje ||
+                    'No se pudo analizar la imagen.';
+
+
+                setStatus(
+                    mensaje
+                );
+
+
+                mostrarMensaje(
+                    mensaje
+                );
+
+
+                return {
+
+                    ok: false,
+
+                    numero: '',
+
+                    texto:
+                        data.texto ||
+                        data.texto_ocr ||
+                        ''
+
+                };
+
+            }
+
+
+            // -------------------------------------------------
+            // Obtener número
+            // -------------------------------------------------
+
+            let numero =
+                data.numero ||
+                data.numero_patrimonial ||
+                '';
+
+
+            let textoOCR =
+                data.texto ||
+                data.texto_ocr ||
+                '';
+
+
+            // -------------------------------------------------
+            // Si el servidor devuelve texto pero no
+            // devuelve directamente el número, intentamos
+            // extraerlo en JavaScript.
+            // -------------------------------------------------
+
+            if (
+                !numero &&
+                textoOCR
+            ) {
+
+                numero =
+                    normalizarNumeroPatrimonial(
+                        textoOCR
+                    );
+
+            }
+
+
+            // -------------------------------------------------
+            // Normalizar número
+            // -------------------------------------------------
+
+            if (numero) {
+
+                numero =
+                    normalizarNumeroPatrimonial(
+                        numero
+                    );
+
+            }
+
+
+            console.log(
+                'NÚMERO OCR FINAL:',
+                numero
+            );
+
+
+            console.log(
+                'TEXTO OCR:',
+                textoOCR
+            );
+
+
+            // -------------------------------------------------
+            // Mostrar resultado
+            // -------------------------------------------------
+
+            if (
+                numero &&
+                resultInput
+            ) {
+
+                resultInput.value =
+                    numero;
+
+
+                if (resultPanel) {
+
+                    resultPanel.classList.remove(
+                        'hidden'
+                    );
 
                 }
 
+
+                setStatus(
+                    'Número detectado: ' +
+                    numero
+                );
+
+
+                return {
+
+                    ok: true,
+
+                    numero:
+                        numero,
+
+                    texto:
+                        textoOCR,
+
+                    data:
+                        data
+
+                };
+
+            }
+
+
+            // -------------------------------------------------
+            // No encontrado
+            // -------------------------------------------------
+
+            setStatus(
+                'No se encontró ningún número.'
             );
 
 
-        const resultado =
-            resultados[0];
-
-
-        console.log(
-            'RESULTADO PADDLE:',
-            resultado
-        );
-
-
-        const texto =
-            extraerTexto(
-                resultado
+            mostrarMensaje(
+                'Se procesó la imagen pero no se encontró el número de matrícula.'
             );
 
 
-        console.log(
-            'OCR PADDLE:',
-            texto
-        );
+            return {
+
+                ok: false,
+
+                numero: '',
+
+                texto:
+                    textoOCR,
+
+                data:
+                    data
+
+            };
 
 
-        const numero =
-            obtenerNumeroPatrimonial(
-                texto
+        } catch (error) {
+
+            console.error(
+                'ERROR OCR:',
+                error
             );
 
 
-        console.log(
-            'NÚMERO PATRIMONIAL:',
-            numero
-        );
+            setStatus(
+                'Error al comunicarse con el servidor OCR.'
+            );
 
 
-        return {
+            mostrarMensaje(
+                'Error al comunicarse con el servidor OCR.\n\n' +
+                error.message
+            );
 
-            texto: texto,
 
-            numero: numero,
+            throw error;
 
-            resultado: resultado
-
-        };
+        }
 
     }
 
@@ -1561,235 +1805,649 @@ async function escanearBarcode() {
 
     async function analizarFotografia() {
 
-        console.log(
-            '======================================'
-        );
+        if (procesandoOCR) {
 
-        console.log(
-            'INICIANDO ANÁLISIS'
-        );
+            console.log(
+                'Ya existe un análisis en curso.'
+            );
 
-        console.log(
-            '======================================'
-        );
+            return;
+
+        }
 
 
-        setStatus(
-            'Tomando fotografía...'
-        );
+        procesandoOCR =
+            true;
 
 
-        const fotografia =
-            capturarRecuadro();
+        try {
+
+            console.log(
+                '======================================'
+            );
 
 
-        // =====================================================
-        // CREAR VERSIONES
-        // =====================================================
-
-        const versiones = [
-
-            {
-                nombre: 'ORIGINAL',
-                canvas:
-                    crearVersionNormal(
-                        fotografia
-                    )
-            },
-
-            {
-                nombre: 'GRISES',
-                canvas:
-                    crearVersionGrises(
-                        fotografia
-                    )
-            },
-
-            {
-                nombre: 'CONTRASTE',
-                canvas:
-                    crearVersionContraste(
-                        fotografia
-                    )
-            },
-
-            {
-                nombre: 'UMBRAL',
-                canvas:
-                    crearVersionUmbral(
-                        fotografia
-                    )
-            }
-
-        ];
+            console.log(
+                'INICIANDO ANÁLISIS DE FOTOGRAFÍA'
+            );
 
 
-        console.log(
-            'VERSIONES:',
-            versiones.length
-        );
+            console.log(
+                '======================================'
+            );
 
 
-        const resultados = [];
+            setStatus(
+                'Tomando fotografía...'
+            );
 
 
-        // =====================================================
-        // PROCESAR
-        // =====================================================
+            // -------------------------------------------------
+            // Capturar recuadro
+            // -------------------------------------------------
 
-        for (
-            let i = 0;
-            i < versiones.length;
-            i++
-        ) {
-
-            const version =
-                versiones[i];
+            const fotografia =
+                capturarRecuadro();
 
 
-            try {
+            // -------------------------------------------------
+            // Crear versiones
+            // -------------------------------------------------
 
-                const resultado =
-                    await ejecutarPaddleOCR(
+            const versiones = [
 
-                        version.canvas,
+                {
+                    nombre:
+                        'ORIGINAL',
 
-                        i + 1
+                    canvas:
+                        crearVersionNormal(
+                            fotografia
+                        )
+                },
 
-                    );
+                {
+                    nombre:
+                        'GRISES',
+
+                    canvas:
+                        crearVersionGrises(
+                            fotografia
+                        )
+                },
+
+                {
+                    nombre:
+                        'CONTRASTE',
+
+                    canvas:
+                        crearVersionContraste(
+                            fotografia
+                        )
+                },
+
+                {
+                    nombre:
+                        'UMBRAL',
+
+                    canvas:
+                        crearVersionUmbral(
+                            fotografia
+                        )
+                }
+
+            ];
 
 
-                resultados.push({
-
-                    version:
-                        version.nombre,
-
-                    texto:
-                        resultado.texto,
-
-                    numero:
-                        resultado.numero,
-
-                    resultado:
-                        resultado.resultado
-
-                });
+            console.log(
+                'VERSIONES:',
+                versiones.length
+            );
 
 
-                // =================================================
-                // SI YA TENEMOS RESULTADO
-                // =================================================
+            // -------------------------------------------------
+            // Probar cada versión
+            //
+            // Esto es importante porque OCR.space puede
+            // reconocer una versión mejor que otra.
+            // -------------------------------------------------
 
-                if (
-                    resultado.numero
-                ) {
+            let numeroFinal =
+                '';
+
+
+            let textoFinal =
+                '';
+
+
+            for (
+                let i = 0;
+                i < versiones.length;
+                i++
+            ) {
+
+                const version =
+                    versiones[i];
+
+
+                console.log(
+                    '--------------------------------------'
+                );
+
+
+                console.log(
+                    'PROCESANDO VERSIÓN:',
+                    version.nombre
+                );
+
+
+                setStatus(
+                    'Analizando imagen (' +
+                    (i + 1) +
+                    '/' +
+                    versiones.length +
+                    ')...'
+                );
+
+
+                try {
+
+                    const blob =
+                        await canvasToBlob(
+                            version.canvas
+                        );
+
+
+                    const resultado =
+                        await enviarImagenOCR(
+                            blob
+                        );
+
 
                     console.log(
-                        'RESULTADO ENCONTRADO EN:',
-                        version.nombre
+                        'RESULTADO VERSIÓN:',
+                        version.nombre,
+                        resultado
                     );
 
-                    break;
+
+                    if (
+                        resultado &&
+                        resultado.numero
+                    ) {
+
+                        numeroFinal =
+                            resultado.numero;
+
+
+                        textoFinal =
+                            resultado.texto ||
+                            '';
+
+
+                        console.log(
+                            'NÚMERO ENCONTRADO EN:',
+                            version.nombre
+                        );
+
+
+                        break;
+
+                    }
+
+
+                    if (
+                        resultado &&
+                        resultado.texto
+                    ) {
+
+                        textoFinal =
+                            resultado.texto;
+
+                    }
+
+
+                } catch (error) {
+
+                    console.error(
+                        'ERROR PROCESANDO VERSIÓN:',
+                        version.nombre,
+                        error
+                    );
 
                 }
 
-            } catch (error) {
+            }
 
-                console.error(
-                    'ERROR OCR:',
-                    version.nombre,
-                    error
+
+            // -------------------------------------------------
+            // Mostrar resultado final
+            // -------------------------------------------------
+
+            console.log(
+                '======================================'
+            );
+
+
+            console.log(
+                'RESULTADO OCR FINAL:',
+                {
+
+                    numero:
+                        numeroFinal,
+
+                    texto:
+                        textoFinal
+
+                }
+            );
+
+
+            console.log(
+                '======================================'
+            );
+
+
+            if (resultPanel) {
+
+                resultPanel.classList.remove(
+                    'hidden'
                 );
 
             }
 
-        }
 
+            if (resultInput) {
 
-        console.log(
-            '======================================'
-        );
-
-        console.log(
-            'RESULTADOS OCR:',
-            resultados
-        );
-
-        console.log(
-            '======================================'
-        );
-
-
-        // =====================================================
-        // BUSCAR MEJOR RESULTADO
-        // =====================================================
-
-        let numeroFinal = '';
-
-
-        for (
-            let i = 0;
-            i < resultados.length;
-            i++
-        ) {
-
-            if (
-                resultados[i].numero
-            ) {
-
-                numeroFinal =
-                    resultados[i].numero;
-
-                break;
+                resultInput.value =
+                    numeroFinal;
 
             }
 
+
+            if (numeroFinal) {
+
+                setStatus(
+                    'Número detectado: ' +
+                    numeroFinal
+                );
+
+
+                console.log(
+                    'NÚMERO PATRIMONIAL FINAL:',
+                    numeroFinal
+                );
+
+
+            } else {
+
+                setStatus(
+                    'No pude reconocer el número. Acercá la cámara y probá nuevamente.'
+                );
+
+
+                console.log(
+                    'NÚMERO PATRIMONIAL NO DETECTADO'
+                );
+
+            }
+
+
+            return {
+
+                numero:
+                    numeroFinal,
+
+                texto:
+                    textoFinal
+
+            };
+
+
+        } finally {
+
+            procesandoOCR =
+                false;
+
+        }
+
+    }
+
+
+    // =========================================================
+    // BÚSQUEDA EN SICOPRO
+    // =========================================================
+
+    async function buscar(valor) {
+
+        // -----------------------------------------------------
+        // Normalizar
+        // -----------------------------------------------------
+
+        valor =
+            String(
+                valor || ''
+            )
+                .trim()
+                .toUpperCase();
+
+
+        // -----------------------------------------------------
+        // Validar
+        // -----------------------------------------------------
+
+        if (!valor) {
+
+            if (
+                window.EPAN &&
+                EPAN.tipo === 'barcode'
+            ) {
+
+                mostrarMensaje(
+                    'Ingresá un código de barras.'
+                );
+
+            } else {
+
+                mostrarMensaje(
+                    'Ingresá un número patrimonial.'
+                );
+
+            }
+
+
+            return;
+
         }
 
 
-        // =====================================================
-        // MOSTRAR
-        // =====================================================
+        // -----------------------------------------------------
+        // Verificar EPAN
+        // -----------------------------------------------------
 
-        resultPanel.classList.remove(
-            'hidden'
+        if (
+            !window.EPAN ||
+            !EPAN.buscarUrl
+        ) {
+
+            console.error(
+                'EPAN.buscarUrl no está definido.'
+            );
+
+
+            mostrarMensaje(
+                'No se configuró la URL de búsqueda.'
+            );
+
+
+            return;
+
+        }
+
+
+        // -----------------------------------------------------
+        // CSRF
+        // -----------------------------------------------------
+
+        const csrfToken =
+            EPAN.csrfToken;
+
+
+        if (!csrfToken) {
+
+            console.error(
+                'EPAN.csrfToken no está definido.'
+            );
+
+
+            mostrarMensaje(
+                'No se pudo validar la solicitud.'
+            );
+
+
+            setStatus(
+                'Error de seguridad.'
+            );
+
+
+            return;
+
+        }
+
+
+        // -----------------------------------------------------
+        // Formulario
+        // -----------------------------------------------------
+
+        const form =
+            new URLSearchParams();
+
+
+        form.append(
+            '_csrf',
+            csrfToken
         );
 
 
-        resultInput.value =
-            numeroFinal;
+        form.append(
+            'tipo',
+            EPAN.tipo
+        );
 
 
-        if (numeroFinal) {
+        form.append(
+            'valor',
+            valor
+        );
+
+
+        console.log(
+            '======================================'
+        );
+
+
+        console.log(
+            'DATOS DE BÚSQUEDA:',
+            {
+
+                tipo:
+                    EPAN.tipo,
+
+                valor:
+                    valor,
+
+                url:
+                    EPAN.buscarUrl
+
+            }
+        );
+
+
+        console.log(
+            '======================================'
+        );
+
+
+        try {
 
             setStatus(
-                'Número detectado. Verificá antes de buscar.'
+                'Buscando en SICOPRO...'
+            );
+
+
+            const response =
+                await fetch(
+
+                    EPAN.buscarUrl,
+
+                    {
+
+                        method:
+                            'POST',
+
+                        credentials:
+                            'same-origin',
+
+                        headers: {
+
+                            'Content-Type':
+                                'application/x-www-form-urlencoded; charset=UTF-8',
+
+                            'X-Requested-With':
+                                'XMLHttpRequest'
+
+                        },
+
+                        body:
+                            form.toString()
+
+                    }
+
+                );
+
+
+            console.log(
+                'STATUS:',
+                response.status
             );
 
 
             console.log(
-                '======================================'
+                'URL FINAL:',
+                response.url
             );
+
+
+            const texto =
+                await response.text();
+
 
             console.log(
-                'NÚMERO PATRIMONIAL FINAL:',
-                numeroFinal
+                'RESPUESTA SERVIDOR:',
+                texto
             );
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    'HTTP ' +
+                    response.status +
+                    ': ' +
+                    texto
+                );
+
+            }
+
+
+            let data;
+
+
+            try {
+
+                data =
+                    JSON.parse(
+                        texto
+                    );
+
+            } catch (jsonError) {
+
+                console.error(
+                    'RESPUESTA NO ES JSON:',
+                    texto
+                );
+
+
+                throw new Error(
+                    'El servidor no devolvió JSON válido.'
+                );
+
+            }
+
 
             console.log(
-                '======================================'
+                'JSON BÚSQUEDA:',
+                data
             );
 
 
-        } else {
+            // -------------------------------------------------
+            // BIEN ENCONTRADO
+            // -------------------------------------------------
+
+            if (data.ok) {
+
+                console.log(
+                    'BIEN ENCONTRADO:',
+                    data
+                );
+
+
+                if (
+                    data.redirect
+                ) {
+
+                    setStatus(
+                        'Bien encontrado. Abriendo detalle...'
+                    );
+
+
+                    window.location.href =
+                        data.redirect;
+
+
+                    return;
+
+                }
+
+
+                throw new Error(
+                    'El servidor no devolvió la URL de detalle.'
+                );
+
+            }
+
+
+            // -------------------------------------------------
+            // BIEN NO ENCONTRADO
+            // -------------------------------------------------
+
+            const mensaje =
+                data.mensaje ||
+                (
+                    EPAN.tipo === 'barcode'
+
+                        ? 'Código de barras no encontrado.'
+
+                        : 'Número patrimonial no encontrado.'
+                );
+
+
+            mostrarMensaje(
+                mensaje
+            );
+
 
             setStatus(
-                'No pude reconocer el número. Acercá la cámara y probá nuevamente.'
+                mensaje
             );
 
 
-            console.log(
-                'NÚMERO PATRIMONIAL NO DETECTADO'
+        } catch (error) {
+
+            console.error(
+                'ERROR BÚSQUEDA:',
+                error
+            );
+
+
+            mostrarMensaje(
+                'Error de comunicación con el servidor.'
+            );
+
+
+            setStatus(
+                'Error de comunicación.'
             );
 
         }
@@ -1798,22 +2456,33 @@ async function escanearBarcode() {
 
 
     // =========================================================
-    // BOTÓN CÁMARA
+    // BOTÓN CAPTURAR
     // =========================================================
 
     if (captureBtn) {
 
         captureBtn.addEventListener(
+
             'click',
+
             async function () {
 
                 if (
+                    !video ||
                     !video.videoWidth
                 ) {
 
                     setStatus(
                         'La cámara todavía no está lista.'
                     );
+
+
+                    return;
+
+                }
+
+
+                if (procesandoOCR) {
 
                     return;
 
@@ -1828,6 +2497,7 @@ async function escanearBarcode() {
 
                     await analizarFotografia();
 
+
                 } catch (error) {
 
                     console.error(
@@ -1835,9 +2505,11 @@ async function escanearBarcode() {
                         error
                     );
 
+
                     setStatus(
                         'Error al analizar la fotografía.'
                     );
+
 
                 } finally {
 
@@ -1847,6 +2519,7 @@ async function escanearBarcode() {
                 }
 
             }
+
         );
 
     }
@@ -1859,401 +2532,90 @@ async function escanearBarcode() {
     if (manualBtn) {
 
         manualBtn.addEventListener(
+
             'click',
+
             function () {
 
-                resultPanel.classList.remove(
-                    'hidden'
-                );
+                if (resultPanel) {
 
-                resultInput.focus();
+                    resultPanel.classList.remove(
+                        'hidden'
+                    );
 
-            }
-        );
-
-    }
-
-
-    // =========================================================
-    // BÚSQUEDA
-    // =========================================================
-async function buscar(valor) {
-
-    // =========================================================
-    // NORMALIZAR VALOR
-    // =========================================================
-
-    valor = valor
-        .trim()
-        .toUpperCase();
-
-
-    // =========================================================
-    // VALIDAR VALOR
-    // =========================================================
-
-    if (!valor) {
-
-        if (
-            window.EPAN &&
-            EPAN.tipo === 'barcode'
-        ) {
-
-            if (typeof mostrarToast === 'function') {
-
-                mostrarToast(
-                    'Ingresá un código de barras.'
-                );
-
-            } else {
-
-                alert(
-                    'Ingresá un código de barras.'
-                );
-            }
-
-        } else {
-
-            if (typeof mostrarToast === 'function') {
-
-                mostrarToast(
-                    'Ingresá un número patrimonial.'
-                );
-
-            } else {
-
-                alert(
-                    'Ingresá un número patrimonial.'
-                );
-            }
-        }
-
-        return;
-    }
-
-
-    // =========================================================
-    // VERIFICAR EPAN
-    // =========================================================
-
-    if (
-        !window.EPAN ||
-        !EPAN.buscarUrl
-    ) {
-
-        console.error(
-            'EPAN.buscarUrl no está definido.'
-        );
-
-        if (typeof mostrarToast === 'function') {
-
-            mostrarToast(
-                'No se configuró la URL de búsqueda.'
-            );
-
-        } else {
-
-            alert(
-                'No se configuró la URL de búsqueda.'
-            );
-        }
-
-        return;
-    }
-
-
-    // =========================================================
-    // OBTENER CSRF
-    // =========================================================
-
-    const csrfToken =
-        EPAN.csrfToken;
-
-
-    console.log(
-        'CSRF EPAN:',
-        csrfToken
-    );
-
-
-    if (!csrfToken) {
-
-        console.error(
-            'EPAN.csrfToken no está definido.'
-        );
-
-        if (typeof mostrarToast === 'function') {
-
-            mostrarToast(
-                'No se pudo validar la solicitud.'
-            );
-
-        } else {
-
-            alert(
-                'No se pudo validar la solicitud.'
-            );
-        }
-
-        setStatus(
-            'Error de seguridad.'
-        );
-
-        return;
-    }
-
-
-    // =========================================================
-    // CREAR FORMULARIO
-    // =========================================================
-
-    const form =
-        new URLSearchParams();
-
-
-    form.append(
-        '_csrf',
-        csrfToken
-    );
-
-
-    form.append(
-        'tipo',
-        EPAN.tipo
-    );
-
-
-    form.append(
-        'valor',
-        valor
-    );
-
-
-    console.log(
-        'DATOS DE BÚSQUEDA:',
-        {
-            tipo: EPAN.tipo,
-            valor: valor,
-            url: EPAN.buscarUrl
-        }
-    );
-
-
-    // =========================================================
-    // BUSCAR EN SICOPRO
-    // =========================================================
-
-    try {
-
-        setStatus(
-            'Buscando en SICOPRO...'
-        );
-
-
-        const response =
-            await fetch(
-                EPAN.buscarUrl,
-                {
-                    method: 'POST',
-
-                    credentials: 'same-origin',
-
-                    headers: {
-
-                        'Content-Type':
-                            'application/x-www-form-urlencoded; charset=UTF-8',
-
-                        'X-Requested-With':
-                            'XMLHttpRequest'
-
-                    },
-
-                    body:
-                        form.toString()
                 }
-            );
 
 
-        // =====================================================
-        // INFORMACIÓN DE LA RESPUESTA
-        // =====================================================
+                if (resultInput) {
 
-        console.log(
-            'STATUS:',
-            response.status
-        );
+                    resultInput.focus();
 
-        console.log(
-            'URL FINAL:',
-            response.url
-        );
+                }
 
-
-        // =====================================================
-        // LEER RESPUESTA
-        // =====================================================
-
-        const texto =
-            await response.text();
-
-
-        console.log(
-            'RESPUESTA SERVIDOR:',
-            texto
-        );
-
-
-        // =====================================================
-        // ERROR HTTP
-        // =====================================================
-
-        if (!response.ok) {
-
-            throw new Error(
-                `HTTP ${response.status}: ${texto}`
-            );
-        }
-
-
-        // =====================================================
-        // CONVERTIR RESPUESTA A JSON
-        // =====================================================
-
-        let data;
-
-        try {
-
-            data =
-                JSON.parse(texto);
-
-        } catch (jsonError) {
-
-            console.error(
-                'RESPUESTA NO ES JSON:',
-                texto
-            );
-
-            throw new Error(
-                'El servidor no devolvió JSON válido.'
-            );
-        }
-
-
-        // =====================================================
-        // BIEN ENCONTRADO
-        // =====================================================
-
-        if (data.ok) {
-
-            console.log(
-                'BIEN ENCONTRADO:',
-                data
-            );
-
-
-            if (
-                data.redirect
-            ) {
-
-                setStatus(
-                    'Bien encontrado. Abriendo detalle...'
-                );
-
-
-                window.location.href =
-                    data.redirect;
-
-
-                return;
             }
 
-
-            throw new Error(
-                'El servidor no devolvió la URL de detalle.'
-            );
-        }
-
-
-        // =====================================================
-        // BIEN NO ENCONTRADO
-        // =====================================================
-
-        const mensaje =
-            data.mensaje ||
-            (
-                EPAN.tipo === 'barcode'
-                    ? 'Código de barras no encontrado.'
-                    : 'Número patrimonial no encontrado.'
-            );
-
-
-        if (
-            typeof mostrarToast === 'function'
-        ) {
-
-            mostrarToast(
-                mensaje
-            );
-
-        } else {
-
-            alert(
-                mensaje
-            );
-        }
-
-
-        setStatus(
-            mensaje
         );
 
-
-    } catch (error) {
-
-        // =====================================================
-        // ERROR
-        // =====================================================
-
-        console.error(
-            'ERROR BÚSQUEDA:',
-            error
-        );
-
-
-        if (
-            typeof mostrarToast === 'function'
-        ) {
-
-            mostrarToast(
-                'Error de comunicación con el servidor.'
-            );
-
-        } else {
-
-            alert(
-                'Error de comunicación con el servidor.'
-            );
-        }
-
-
-        setStatus(
-            'Error de comunicación.'
-        );
     }
 
-}
-    
+
+    // =========================================================
+    // BOTÓN BUSCAR
+    // =========================================================
+
     if (buscarBtn) {
 
         buscarBtn.addEventListener(
+
             'click',
+
             function () {
+
+                if (!resultInput) {
+
+                    return;
+
+                }
+
 
                 buscar(
                     resultInput.value
                 );
 
             }
+
+        );
+
+    }
+
+
+    // =========================================================
+    // ENTER EN EL CAMPO
+    // =========================================================
+
+    if (resultInput) {
+
+        resultInput.addEventListener(
+
+            'keydown',
+
+            function (event) {
+
+                if (
+                    event.key === 'Enter'
+                ) {
+
+                    event.preventDefault();
+
+
+                    buscar(
+                        resultInput.value
+                    );
+
+                }
+
+            }
+
         );
 
     }
@@ -2264,26 +2626,49 @@ async function buscar(valor) {
     // =========================================================
 
     document.addEventListener(
+
         'DOMContentLoaded',
+
         async function () {
+
+            console.log(
+                '======================================'
+            );
+
+
+            console.log(
+                'EPAN SCANNER INICIANDO'
+            );
+
+
+            console.log(
+                'OCR: SERVIDOR'
+            );
+
+
+            console.log(
+                '======================================'
+            );
+
 
             await iniciarCamara();
 
 
-            // ================================================
-            // CÓDIGO DE BARRAS
-            // ================================================
+            // -------------------------------------------------
+            // Código de barras
+            // -------------------------------------------------
 
             if (
                 window.EPAN &&
                 EPAN.tipo === 'barcode'
             ) {
 
-                iniciarLectorBarcode();
+                await iniciarLectorBarcode();
 
             }
 
         }
+
     );
 
 
@@ -2292,8 +2677,14 @@ async function buscar(valor) {
     // =========================================================
 
     window.addEventListener(
+
         'beforeunload',
+
         function () {
+
+            // -------------------------------------------------
+            // Detener cámara
+            // -------------------------------------------------
 
             if (stream) {
 
@@ -2310,25 +2701,30 @@ async function buscar(valor) {
             }
 
 
-            if (paddleOCR) {
+            // -------------------------------------------------
+            // Detener barcode
+            // -------------------------------------------------
 
-                try {
+            barcodeScanning =
+                false;
 
-                    paddleOCR.dispose();
 
-                } catch (e) {
+            if (barcodeFrame) {
 
-                    console.warn(
-                        'No se pudo liberar PaddleOCR:',
-                        e
-                    );
+                cancelAnimationFrame(
+                    barcodeFrame
+                );
 
-                }
+
+                barcodeFrame =
+                    null;
 
             }
 
         }
+
     );
 
 
 })();
+
