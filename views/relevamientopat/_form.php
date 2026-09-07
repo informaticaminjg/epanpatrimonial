@@ -6628,7 +6628,7 @@ function cerrarFotoCompleta() {
 
 
 <script>
-    function reproducirSonidoBienAgregado()
+function reproducirSonidoBienAgregado()
 {
     try {
 
@@ -6669,8 +6669,9 @@ function cerrarFotoCompleta() {
         );
 
 
+        // Volumen aumentado
         gain.gain.exponentialRampToValueAtTime(
-            0.05,
+            0.08,
             audioContext.currentTime + 0.02
         );
 
@@ -6704,6 +6705,8 @@ function cerrarFotoCompleta() {
 
     }
 }
+
+
 function reproducirSonidoSuave()
 {
     try {
