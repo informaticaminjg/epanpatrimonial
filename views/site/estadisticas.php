@@ -275,7 +275,7 @@ $this->registerJsFile(
 
     .two-columns {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr;
         gap: 10px;
     }
 
@@ -436,7 +436,8 @@ $this->registerJsFile(
         }
 
         .chart-container {
-            height: 220px;
+            position: relative;
+            height: 260px;
         }
 
         .two-columns {
