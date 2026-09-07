@@ -387,174 +387,243 @@
     // ESCANEAR CÓDIGO DE BARRAS
     // =========================================================
 
-    async function escanearBarcode() {
+    // =========================================================
+// ESCANEAR CÓDIGO DE BARRAS
+// =========================================================
 
-        if (!barcodeScanning) {
-            return;
-        }
+async function escanearBarcode() {
+
+    if (!barcodeScanning) {
+        return;
+    }
+
+
+    if (
+        !barcodeDetector ||
+        !video ||
+        !video.videoWidth
+    ) {
+
+        barcodeFrame =
+            requestAnimationFrame(
+                escanearBarcode
+            );
+
+        return;
+
+    }
+
+
+    // -----------------------------------------------------
+    // Evitar detecciones simultáneas
+    // -----------------------------------------------------
+
+    if (barcodeDetectando) {
+
+        barcodeFrame =
+            requestAnimationFrame(
+                escanearBarcode
+            );
+
+        return;
+
+    }
+
+
+    barcodeDetectando = true;
+
+
+    try {
+
+        const resultados =
+            await barcodeDetector.detect(
+                video
+            );
 
 
         if (
-            !barcodeDetector ||
-            !video ||
-            !video.videoWidth
+            resultados &&
+            resultados.length > 0
         ) {
 
-            barcodeFrame =
-                requestAnimationFrame(
-                    escanearBarcode
+            const resultado =
+                resultados[0];
+
+
+            const codigo =
+                resultado.rawValue;
+
+
+            console.log(
+                '======================================'
+            );
+
+            console.log(
+                'CÓDIGO DE BARRAS DETECTADO:',
+                codigo
+            );
+
+            console.log(
+                'FORMATO:',
+                resultado.format
+            );
+
+            console.log(
+                '======================================'
+            );
+
+
+            if (!codigo) {
+                return;
+            }
+
+
+            // -------------------------------------------------
+            // Detener temporalmente el escaneo
+            // -------------------------------------------------
+
+            barcodeScanning = false;
+
+
+            if (barcodeFrame) {
+
+                cancelAnimationFrame(
+                    barcodeFrame
                 );
 
-            return;
+                barcodeFrame = null;
 
-        }
-
-
-        // -----------------------------------------------------
-        // Evitar detecciones simultáneas
-        // -----------------------------------------------------
-
-        if (barcodeDetectando) {
-
-            barcodeFrame =
-                requestAnimationFrame(
-                    escanearBarcode
-                );
-
-            return;
-
-        }
+            }
 
 
-        barcodeDetectando =
-            true;
+            // -------------------------------------------------
+            // Mostrar código
+            // -------------------------------------------------
+
+            if (resultInput) {
+
+                resultInput.value =
+                    codigo;
+
+            }
 
 
-        try {
-
-            const resultados =
-                await barcodeDetector.detect(
-                    video
-                );
+            setStatus(
+                'Código detectado: ' +
+                codigo
+            );
 
 
-            if (
-                resultados &&
-                resultados.length > 0
-            ) {
+            // -------------------------------------------------
+            // Liberar el bloqueo ANTES de buscar
+            // -------------------------------------------------
 
-                const resultado =
-                    resultados[0];
+            barcodeDetectando = false;
 
 
-                const codigo =
-                    resultado.rawValue;
+            // -------------------------------------------------
+            // Buscar automáticamente
+            // -------------------------------------------------
 
-
-                console.log(
-                    '======================================'
-                );
-
-                console.log(
-                    'CÓDIGO DE BARRAS DETECTADO:',
-                    codigo
-                );
-
-                console.log(
-                    'FORMATO:',
-                    resultado.format
-                );
-
-                console.log(
-                    '======================================'
-                );
-
-
-                if (!codigo) {
-
-                    return;
-
-                }
-
-
-                // -------------------------------------------------
-                // Detener escaneo
-                // -------------------------------------------------
-
-                barcodeScanning =
-                    false;
-
-
-                if (barcodeFrame) {
-
-                    cancelAnimationFrame(
-                        barcodeFrame
-                    );
-
-                    barcodeFrame =
-                        null;
-
-                }
-
-
-                // -------------------------------------------------
-                // Mostrar código
-                // -------------------------------------------------
-
-                if (resultInput) {
-
-                    resultInput.value =
-                        codigo;
-
-                }
-
-
-                setStatus(
-                    'Código detectado: ' +
-                    codigo
-                );
-
-
-                // -------------------------------------------------
-                // Buscar automáticamente
-                // -------------------------------------------------
+            try {
 
                 await buscar(
                     codigo
                 );
 
+            } catch (error) {
 
-                return;
+                console.error(
+                    'ERROR BUSCANDO CÓDIGO:',
+                    error
+                );
 
             }
 
 
-        } catch (error) {
+            // -------------------------------------------------
+            // VOLVER A ACTIVAR EL LECTOR
+            // -------------------------------------------------
 
-            console.error(
-                'ERROR LEYENDO CÓDIGO:',
-                error
-            );
+            // Si la búsqueda produjo una redirección,
+            // la página ya estará navegando y esto no tendrá
+            // efecto práctico.
 
-        } finally {
+            if (
+                window.EPAN &&
+                EPAN.tipo === 'barcode'
+            ) {
 
-            barcodeDetectando =
-                false;
+                barcodeScanning = true;
 
-        }
+                barcodeDetectando = false;
+
+                barcodeFrame = null;
 
 
-        if (barcodeScanning) {
-
-            barcodeFrame =
-                requestAnimationFrame(
-                    escanearBarcode
+                setStatus(
+                    'Apuntá al siguiente código de barras'
                 );
 
+
+                console.log(
+                    '======================================'
+                );
+
+                console.log(
+                    'LECTOR REACTIVADO'
+                );
+
+                console.log(
+                    'LISTO PARA LEER OTRO CÓDIGO'
+                );
+
+                console.log(
+                    '======================================'
+                );
+
+
+                barcodeFrame =
+                    requestAnimationFrame(
+                        escanearBarcode
+                    );
+
+            }
+
+
+            return;
+
         }
+
+
+    } catch (error) {
+
+        console.error(
+            'ERROR LEYENDO CÓDIGO:',
+            error
+        );
+
+    } finally {
+
+        barcodeDetectando = false;
 
     }
 
+
+    // -----------------------------------------------------
+    // Continuar escaneando
+    // -----------------------------------------------------
+
+    if (barcodeScanning) {
+
+        barcodeFrame =
+            requestAnimationFrame(
+                escanearBarcode
+            );
+
+    }
+
+}
 
     // =========================================================
     // OBTENER RECUADRO BLANCO
