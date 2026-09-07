@@ -28,7 +28,10 @@ class SiteController extends Controller
         parent::__construct($id, $module, $config);
     }
 
-    
+    public function actionEstadisticas()
+    {
+        return $this->render('estadisticas');
+    }
 
     /**
      * {@inheritdoc}

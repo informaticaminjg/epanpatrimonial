@@ -2342,8 +2342,10 @@ function reproducirSonidoAceptacion()
                 window.webkitAudioContext
             )();
 
+
         const oscillator =
             audioContext.createOscillator();
+
 
         const gain =
             audioContext.createGain();
@@ -2358,6 +2360,7 @@ function reproducirSonidoAceptacion()
             audioContext.currentTime
         );
 
+
         oscillator.frequency.setValueAtTime(
             780,
             audioContext.currentTime + 0.12
@@ -2369,10 +2372,13 @@ function reproducirSonidoAceptacion()
             audioContext.currentTime
         );
 
+
+        // Volumen aumentado
         gain.gain.exponentialRampToValueAtTime(
-            0.045,
+            0.08,
             audioContext.currentTime + 0.02
         );
+
 
         gain.gain.exponentialRampToValueAtTime(
             0.0001,
@@ -2381,10 +2387,15 @@ function reproducirSonidoAceptacion()
 
 
         oscillator.connect(gain);
-        gain.connect(audioContext.destination);
+
+
+        gain.connect(
+            audioContext.destination
+        );
 
 
         oscillator.start();
+
 
         oscillator.stop(
             audioContext.currentTime + 0.30
@@ -2400,7 +2411,9 @@ function reproducirSonidoAceptacion()
 
     }
 }
-function rechazarInvitacion() {
+
+
+   function rechazarInvitacion() {
 
     const modal = document.getElementById("invitacionToast");
 
