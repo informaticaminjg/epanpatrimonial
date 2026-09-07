@@ -27,7 +27,7 @@ $this->registerJsFile(
     .estadisticas-page {
         max-width: 900px;
         margin: 0 auto;
-        padding-bottom: 90px;
+        padding: 0 15px 90px;
     }
 
     /* =========================================================
