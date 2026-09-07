@@ -6728,6 +6728,7 @@ function reproducirSonidoSuave()
 
         oscillator.type = 'sine';
 
+
         oscillator.frequency.value = 660;
 
 
@@ -6737,8 +6738,9 @@ function reproducirSonidoSuave()
         );
 
 
+        // Volumen aumentado
         gain.gain.exponentialRampToValueAtTime(
-            0.04,
+            0.08,
             audioContext.currentTime + 0.02
         );
 
@@ -6751,12 +6753,14 @@ function reproducirSonidoSuave()
 
         oscillator.connect(gain);
 
+
         gain.connect(
             audioContext.destination
         );
 
 
         oscillator.start();
+
 
         oscillator.stop(
             audioContext.currentTime + 0.25
