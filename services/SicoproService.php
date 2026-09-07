@@ -119,7 +119,7 @@ public function buscarPorCodigoBarras($codigo)
      * PF4X9K2L
      */
 
-    if ($codigo === 'CB123456789') {
+    if ($codigo === '123456789') {
 
         return $this->bienSimulado();
     }
