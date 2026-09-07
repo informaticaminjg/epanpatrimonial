@@ -27,6 +27,10 @@ $config = [
             // !!! insert a secret key in the following (if it is empty) - this is required by cookie validation
             'cookieValidationKey' => 'PRxa-6pOTKbJw56EAyyuYbOHnToGYFOF',
         ],
+        'session' => [
+            'class' => 'yii\web\Session',
+            'savePath' => '@runtime/sessions',
+        ],
         'cache' => [
             'class' => \yii\caching\FileCache::class,
         ],
