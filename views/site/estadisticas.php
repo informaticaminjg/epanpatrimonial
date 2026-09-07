@@ -544,14 +544,14 @@ $this->registerJsFile(
         </div>
 
 
-        <div class="stat-card purple-card">
+       <div class="stat-card purple-card">
 
             <div class="icon">
-                <i class="bi bi-car-front-fill"></i>
+                <i class="bi bi-clipboard-check-fill"></i>
             </div>
 
             <div class="stat-title">
-                Vehículos
+                Relevamientos
             </div>
 
             <div class="stat-number">
