@@ -89,7 +89,7 @@ $this->registerJsFile(
        ========================================================= */
 
     .page-title {
-        padding: 0 5px;
+        padding: 20px 5px 0;
         margin-bottom: 15px;
     }
 
